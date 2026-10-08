@@ -2,6 +2,8 @@ import { prisma, isPrismaActive } from '../../lib/prisma';
 import { TenantProfile } from '../../types/aos';
 import { INITIAL_MOCK_TENANTS } from '../../data/mockSuperAdmin';
 import { CertificateVaultRecord } from '../../types/integrationConnectors';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
+import { IS_DEMO_MODE } from '../../lib/demoMode';
 
 /**
  * P24: o tenant jurídico de demonstração é definido em código (mockSuperAdmin.ts).
@@ -64,9 +66,10 @@ export async function listTenants(): Promise<TenantProfile[]> {
       return tenants.map(mapPrismaTenantToProfile);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'tenantRepository.listTenants');
     console.warn('[tenantRepository.listTenants] Prisma unreachable, using fallback datasets:', err);
   }
-  return [...INITIAL_MOCK_TENANTS];
+  return IS_DEMO_MODE ? [...INITIAL_MOCK_TENANTS] : [];
 }
 
 export async function getTenantById(id: string): Promise<TenantProfile | null> {
@@ -82,9 +85,10 @@ export async function getTenantById(id: string): Promise<TenantProfile | null> {
       return mapPrismaTenantToProfile(tenant);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'tenantRepository.getTenantById');
     console.warn(`[tenantRepository.getTenantById] Prisma unreachable for ${id}:`, err);
   }
-  const fallback = INITIAL_MOCK_TENANTS.find(t => t.id === id);
+  const fallback = IS_DEMO_MODE && INITIAL_MOCK_TENANTS.find(t => t.id === id);
   return fallback ? { ...fallback } : null;
 }
 
@@ -101,9 +105,10 @@ export async function getTenantByCnpj(cnpj: string): Promise<TenantProfile | nul
       return mapPrismaTenantToProfile(tenant);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'tenantRepository.getTenantByCnpj');
     console.warn(`[tenantRepository.getTenantByCnpj] Prisma unreachable for ${cnpj}:`, err);
   }
-  const fallback = INITIAL_MOCK_TENANTS.find(t => t.cnpj === cnpj);
+  const fallback = IS_DEMO_MODE && INITIAL_MOCK_TENANTS.find(t => t.cnpj === cnpj);
   return fallback ? { ...fallback } : null;
 }
 
@@ -163,6 +168,7 @@ export async function upsertTenant(data: Partial<TenantProfile>): Promise<Tenant
     });
     return mapPrismaTenantToProfile(saved);
   } catch (err) {
+    exigirDemoOuFalhar(err, 'tenantRepository.upsertTenant');
     console.warn('[tenantRepository.upsertTenant] Prisma write fallback:', err);
     return {
       id,
@@ -269,6 +275,7 @@ export async function listVaultCertificates(): Promise<CertificateVaultRecord[]>
       }
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'tenantRepository.listVaultCertificates');
     console.warn('[tenantRepository.listVaultCertificates] Prisma fallback:', err);
   }
   return inMemoryCertificates;
@@ -303,6 +310,7 @@ export async function saveVaultCertificate(cert: CertificateVaultRecord): Promis
       });
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'tenantRepository.saveVaultCertificate');
     console.warn('[tenantRepository.saveVaultCertificate] Prisma fallback:', err);
   }
 

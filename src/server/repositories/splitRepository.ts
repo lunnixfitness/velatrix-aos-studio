@@ -3,6 +3,7 @@ import { prisma, isPrismaActive } from '../../lib/prisma';
 import { BaasSplitChargeInstruction } from '../../types/integrationConnectors';
 import { updateBaasSubaccountBalance } from './partnerRepository';
 import { secureId, secureInt } from '../../lib/demoMode';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
 
 export interface SplitDealDto {
   id: string;
@@ -237,6 +238,7 @@ export async function listSplitDeals(tenantId?: string, partnerOfficeId?: string
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'splitRepository.listSplitDeals');
     console.warn('[splitRepository.listSplitDeals] Prisma fallback:', err);
   }
 
@@ -275,6 +277,7 @@ export async function getSplitDealById(id: string): Promise<SplitDealDto | null>
       };
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'splitRepository.getSplitDealById');
     console.warn(`[splitRepository.getSplitDealById] Prisma fallback for ${id}:`, err);
   }
 
@@ -348,6 +351,7 @@ export async function createSplitDeal(data: {
       });
       newDeal.id = created.id;
     } catch (err) {
+      exigirDemoOuFalhar(err, 'splitRepository.createSplitDeal');
       console.warn('[splitRepository.createSplitDeal] Prisma fallback:', err);
     }
   }
@@ -400,6 +404,7 @@ export async function listPayouts(tenantId?: string, partnerOfficeId?: string): 
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'splitRepository.listPayouts');
     console.warn('[splitRepository.listPayouts] Prisma fallback:', err);
   }
 
@@ -476,6 +481,7 @@ export async function createPayout(data: {
       });
       newPayout.id = created.id;
     } catch (err) {
+      exigirDemoOuFalhar(err, 'splitRepository.createPayout');
       console.warn('[splitRepository.createPayout] Prisma fallback:', err);
     }
   }
@@ -520,6 +526,7 @@ export async function updatePayoutStatus(
         };
       }
     } catch (err) {
+      exigirDemoOuFalhar(err, 'splitRepository.updatePayoutStatus');
       console.warn(`[splitRepository.updatePayoutStatus] Prisma fallback for ${id}:`, err);
     }
   }
@@ -585,6 +592,7 @@ export async function listNfseRecords(tenantId?: string, partnerOfficeId?: strin
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'splitRepository.listNfseRecords');
     console.warn('[splitRepository.listNfseRecords] Prisma fallback:', err);
   }
 
@@ -689,6 +697,7 @@ export async function createNfseRecord(data: {
       });
       newRecord.id = created.id;
     } catch (err) {
+      exigirDemoOuFalhar(err, 'splitRepository.createNfseRecord');
       console.warn('[splitRepository.createNfseRecord] Prisma fallback:', err);
     }
   }
@@ -789,6 +798,7 @@ export async function listBaasSplitCharges(): Promise<BaasSplitChargeInstruction
       }
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'splitRepository.listBaasSplitCharges');
     console.warn('[splitRepository.listBaasSplitCharges] Prisma fallback:', err);
   }
   return inMemorySplitCharges;
@@ -829,6 +839,7 @@ export async function saveBaasSplitCharge(instruction: BaasSplitChargeInstructio
       },
     });
   } catch (err) {
+    exigirDemoOuFalhar(err, 'splitRepository.saveBaasSplitCharge');
     console.warn('[splitRepository.saveBaasSplitCharge] Prisma write fallback:', err);
   }
 

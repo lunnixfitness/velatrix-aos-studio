@@ -1,6 +1,7 @@
 import { prisma, isPrismaActive } from '../../lib/prisma';
 import { PerDcompReceipt } from '../../types/integrationConnectors';
 import { secureId } from '../../lib/demoMode';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
 
 export interface TaxCalculationCaseDto {
   id: string;
@@ -117,6 +118,7 @@ export async function listTaxCalculationCases(tenantId?: string): Promise<TaxCal
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'taxCalculationRepository.listTaxCalculationCases');
     console.warn('[taxCalculationRepository.listTaxCalculationCases] Prisma fallback:', err);
   }
 
@@ -171,6 +173,7 @@ export async function getTaxCalculationCaseById(id: string): Promise<TaxCalculat
       };
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'taxCalculationRepository.getTaxCalculationCaseById');
     console.warn(`[taxCalculationRepository.getTaxCalculationCaseById] Prisma fallback for ${id}:`, err);
   }
 
@@ -289,6 +292,7 @@ export async function createTaxCalculationCase(data: {
       });
       newCaseDto.id = created.id;
     } catch (err) {
+      exigirDemoOuFalhar(err, 'taxCalculationRepository.createTaxCalculationCase');
       console.warn('[taxCalculationRepository.createTaxCalculationCase] Prisma fallback:', err);
     }
   }
@@ -351,6 +355,7 @@ export async function listPerDcompReceipts(): Promise<PerDcompReceipt[]> {
       }
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'taxCalculationRepository.listPerDcompReceipts');
     console.warn('[taxCalculationRepository.listPerDcompReceipts] Prisma fallback:', err);
   }
   return inMemoryPerdcomps;
@@ -398,6 +403,7 @@ export async function savePerDcompReceipt(receipt: PerDcompReceipt): Promise<Per
       },
     });
   } catch (err) {
+    exigirDemoOuFalhar(err, 'taxCalculationRepository.savePerDcompReceipt');
     console.warn('[taxCalculationRepository.savePerDcompReceipt] Prisma fallback:', err);
   }
 

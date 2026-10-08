@@ -1,5 +1,6 @@
 import { prisma, isPrismaActive } from '../../lib/prisma';
 import { secureId } from '../../lib/demoMode';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
 
 export type ErpProviderType = 'TOTVS' | 'SAP' | 'CUSTOM';
 export type ErpAuthType = 'API_KEY' | 'OAUTH2' | 'HMAC_SIGNATURE';
@@ -113,6 +114,7 @@ export async function listErpConnections(tenantId?: string): Promise<ErpConnecti
       return list.map(mapPrismaConnection);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.listErpConnections');
     console.warn('[erpRepository.listErpConnections] Prisma fallback:', err);
   }
 
@@ -141,6 +143,7 @@ export async function getErpConnection(tenantId: string, provider?: ErpProviderT
       return mapPrismaConnection(conn);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.getErpConnection');
     console.warn(`[erpRepository.getErpConnection] Prisma fallback for ${tenantId}:`, err);
   }
 
@@ -217,6 +220,7 @@ export async function upsertErpConnection(input: {
     });
     return mapPrismaConnection(saved);
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.upsertErpConnection');
     console.warn('[erpRepository.upsertErpConnection] Prisma fallback:', err);
     return inMemoryItem;
   }
@@ -283,6 +287,7 @@ export async function createErpEventLog(input: {
     });
     return mapPrismaEventLog(created);
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.createErpEventLog');
     console.warn('[erpRepository.createErpEventLog] Prisma fallback:', err);
     return item;
   }
@@ -320,6 +325,7 @@ export async function updateErpEventLog(
     });
     return mapPrismaEventLog(updated);
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.updateErpEventLog');
     console.warn(`[erpRepository.updateErpEventLog] Prisma fallback for ${id}:`, err);
     return idx >= 0 ? inMemoryEventLogs[idx] : null;
   }
@@ -343,6 +349,7 @@ export async function listErpEventLogs(tenantId?: string, limit: number = 50): P
       return logs.map(mapPrismaEventLog);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.listErpEventLogs');
     console.warn('[erpRepository.listErpEventLogs] Prisma fallback:', err);
   }
 
@@ -366,6 +373,7 @@ export async function getErpEventLogById(id: string): Promise<ErpEventLogDto | n
       return mapPrismaEventLog(log);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'erpRepository.getErpEventLogById');
     console.warn(`[erpRepository.getErpEventLogById] Prisma fallback for ${id}:`, err);
   }
 

@@ -1,6 +1,7 @@
 import { prisma, isPrismaActive } from '../../lib/prisma';
 import { AuditRecord } from '../../types/aos';
 import { GovAuditLedgerEntry } from '../../types/integrationConnectors';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
 
 const inMemoryLedger: AuditRecord[] = [];
 
@@ -103,6 +104,7 @@ export async function listAuditLedgerEntries(tenantId?: string): Promise<AuditRe
       return entries.map(mapPrismaLedgerToAuditRecord);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'auditLedgerRepository.listAuditLedgerEntries');
     console.warn('[auditLedgerRepository.listAuditLedgerEntries] Prisma fallback:', err);
   }
   return inMemoryLedger;
@@ -149,6 +151,7 @@ export async function createAuditLedgerEntry(record: AuditRecord): Promise<Audit
     });
     return mapPrismaLedgerToAuditRecord(saved);
   } catch (err) {
+    exigirDemoOuFalhar(err, 'auditLedgerRepository.createAuditLedgerEntry');
     console.warn('[auditLedgerRepository.createAuditLedgerEntry] Prisma fallback:', err);
     return record;
   }
@@ -196,6 +199,7 @@ export async function listGovAuditEntries(): Promise<GovAuditLedgerEntry[]> {
       return mapped;
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'auditLedgerRepository.listGovAuditEntries');
     console.warn('[auditLedgerRepository.listGovAuditEntries] Prisma fallback:', err);
   }
   return inMemoryGovAuditLogs;
@@ -249,6 +253,7 @@ export async function saveGovAuditEntry(entry: GovAuditLedgerEntry): Promise<Gov
       },
     });
   } catch (err) {
+    exigirDemoOuFalhar(err, 'auditLedgerRepository.saveGovAuditEntry');
     console.warn('[auditLedgerRepository.saveGovAuditEntry] Prisma write fallback:', err);
   }
 

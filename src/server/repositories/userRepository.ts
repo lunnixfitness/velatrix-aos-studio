@@ -1,5 +1,7 @@
 import { prisma, isPrismaActive } from '../../lib/prisma';
 import { RegisteredUser, ENTERPRISE_USERS_REGISTRY } from '../../data/mockUsers';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
+import { IS_DEMO_MODE } from '../../lib/demoMode';
 
 function mapPrismaUserToRegistered(u: any): RegisteredUser {
   return {
@@ -28,9 +30,10 @@ export async function listUsers(): Promise<RegisteredUser[]> {
       return users.map(mapPrismaUserToRegistered);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'userRepository.listUsers');
     console.warn('[userRepository.listUsers] Prisma fallback:', err);
   }
-  return [...ENTERPRISE_USERS_REGISTRY];
+  return IS_DEMO_MODE ? [...ENTERPRISE_USERS_REGISTRY] : [];
 }
 
 export async function getUserByEmail(email: string): Promise<RegisteredUser | null> {
@@ -46,9 +49,10 @@ export async function getUserByEmail(email: string): Promise<RegisteredUser | nu
       return mapPrismaUserToRegistered(user);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'userRepository.getUserByEmail');
     console.warn(`[userRepository.getUserByEmail] Prisma fallback for ${email}:`, err);
   }
-  const fallback = ENTERPRISE_USERS_REGISTRY.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const fallback = IS_DEMO_MODE && ENTERPRISE_USERS_REGISTRY.find(u => u.email.toLowerCase() === email.toLowerCase());
   return fallback ? { ...fallback } : null;
 }
 
@@ -65,9 +69,10 @@ export async function getUserById(id: string): Promise<RegisteredUser | null> {
       return mapPrismaUserToRegistered(user);
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'userRepository.getUserById');
     console.warn(`[userRepository.getUserById] Prisma fallback for ${id}:`, err);
   }
-  const fallback = ENTERPRISE_USERS_REGISTRY.find(u => u.id === id);
+  const fallback = IS_DEMO_MODE && ENTERPRISE_USERS_REGISTRY.find(u => u.id === id);
   return fallback ? { ...fallback } : null;
 }
 

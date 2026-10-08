@@ -3,6 +3,7 @@ import { ProspectLead, TaxProfessional } from '../../data/mockOfficeData';
 import { INITIAL_MOCK_PROSPECTS, INITIAL_MOCK_TAX_PROFESSIONALS } from '../../data/mockOfficeData';
 import { BaasSubaccount } from '../../types/integrationConnectors';
 import { secureId, secureInt } from '../../lib/demoMode';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
 
 export interface PartnerOfficeDto {
   id: string;
@@ -62,6 +63,7 @@ export async function listPartnerOffices(): Promise<PartnerOfficeDto[]> {
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.listPartnerOffices');
     console.warn('[partnerRepository.listPartnerOffices] Prisma fallback:', err);
   }
   return [DEFAULT_OFFICE];
@@ -104,6 +106,7 @@ export async function listProspectLeads(partnerOfficeId?: string): Promise<Prosp
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.listProspectLeads');
     console.warn('[partnerRepository.listProspectLeads] Prisma fallback:', err);
   }
   return inMemoryLeads;
@@ -142,6 +145,7 @@ export async function getProspectLeadById(id: string): Promise<ProspectLead | nu
       };
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.getProspectLeadById');
     console.warn(`[partnerRepository.getProspectLeadById] Prisma fallback for ${id}:`, err);
   }
   const found = inMemoryLeads.find(l => l.id === id || l.cnpj === id);
@@ -211,6 +215,7 @@ export async function createProspectLead(data: Partial<ProspectLead>): Promise<P
     });
     newLead.id = created.id;
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.createProspectLead');
     console.warn('[partnerRepository.createProspectLead] Prisma fallback:', err);
   }
 
@@ -239,6 +244,7 @@ export async function updateProspectLead(id: string, updates: Partial<ProspectLe
         data: dataToUpdate,
       });
     } catch (err) {
+      exigirDemoOuFalhar(err, 'partnerRepository.updateProspectLead');
       console.warn(`[partnerRepository.updateProspectLead] Prisma fallback for ${id}:`, err);
     }
   }
@@ -283,6 +289,7 @@ export async function listTaxProfessionals(): Promise<TaxProfessional[]> {
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.listTaxProfessionals');
     console.warn('[partnerRepository.listTaxProfessionals] Prisma fallback:', err);
   }
   return inMemoryProfessionals;
@@ -390,6 +397,7 @@ export async function listBaasSubaccounts(): Promise<BaasSubaccount[]> {
       }
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.listBaasSubaccounts');
     console.warn('[partnerRepository.listBaasSubaccounts] Prisma fallback:', err);
   }
   return inMemoryBaasSubaccounts;
@@ -441,6 +449,7 @@ export async function saveBaasSubaccount(sub: BaasSubaccount): Promise<BaasSubac
       },
     });
   } catch (err) {
+    exigirDemoOuFalhar(err, 'partnerRepository.saveBaasSubaccount');
     console.warn('[partnerRepository.saveBaasSubaccount] Prisma write fallback:', err);
   }
 

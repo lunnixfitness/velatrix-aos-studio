@@ -2,6 +2,7 @@ import { prisma, isPrismaActive } from '../../lib/prisma';
 import { StrategicHub, MicroAgentDefinition, SwarmLiveLog } from '../../types/autonomousSwarm';
 import { STRATEGIC_HUBS, ALL_300_MICRO_AGENTS } from '../../data/swarmHubsCatalog';
 import { INITIAL_SWARM_LOGS } from '../../services/autonomousSwarmService';
+import { exigirDemoOuFalhar } from '../http/erroBanco';
 
 
 export const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
@@ -84,6 +85,7 @@ export async function createSwarmLiveLog(log: SwarmLiveLog): Promise<void> {
         },
       });
     } catch (err) {
+      exigirDemoOuFalhar(err, 'swarmRepository.createSwarmLiveLog');
       // Prisma fallback is transparent
     }
   }
@@ -168,6 +170,7 @@ export async function listStrategicHubs(): Promise<StrategicHub[]> {
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'swarmRepository.listStrategicHubs');
     console.warn('[swarmRepository.listStrategicHubs] Prisma fallback:', err);
   }
   return [...STRATEGIC_HUBS];
@@ -208,6 +211,7 @@ export async function listMicroAgents(hubId?: string): Promise<MicroAgentDefinit
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'swarmRepository.listMicroAgents');
     console.warn('[swarmRepository.listMicroAgents] Prisma fallback:', err);
   }
   if (hubId) {
@@ -261,6 +265,7 @@ export async function listSwarmLiveLogs(limit = 20): Promise<SwarmLiveLogDto[]> 
       }));
     }
   } catch (err) {
+    exigirDemoOuFalhar(err, 'swarmRepository.listSwarmLiveLogs');
     console.warn('[swarmRepository.listSwarmLiveLogs] Prisma fallback:', err);
   }
   return inMemorySwarmLogs.slice(0, limit).map(l => ({
