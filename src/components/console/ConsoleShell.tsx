@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { IS_DEMO_MODE, DEMO_LABEL, DEMO_NOTICE } from '../../lib/demoMode';
+import { ServicoIndisponivelBanner } from './ServicoIndisponivelBanner';
 import {
   Search,
   FileCode2,
@@ -273,6 +274,7 @@ export const ConsoleShell: React.FC<ConsoleShellProps> = ({
         {/* Content Container: Render each module inside <div className="bg-canvas"> */}
         <main ref={mainRef} className="flex-1 min-w-0 min-h-0 bg-canvas overflow-y-auto overscroll-contain">
           <ViewAsBanner onSelectTab={onSelectTab} />
+          <ServicoIndisponivelBanner />
           {IS_DEMO_MODE && (
             <div
               role="note"
