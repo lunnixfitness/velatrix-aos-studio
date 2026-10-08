@@ -53,8 +53,22 @@ const globalForPrisma = globalThis as unknown as {
 
 let prismaInstance: PrismaClient;
 
+/**
+ * P-BE2 · Fim do mock silencioso.
+ * O Proxy em memória só existe em DEMO_MODE. Fora de demo, servidor sem DATABASE_URL
+ * válido (ou com falha de inicialização do driver) é erro fatal de boot.
+ */
+function falhaFatalSemBanco(motivo: string, causa?: unknown): never {
+  const erro = new Error(`[Prisma] ${motivo} — fora de DEMO_MODE o banco é obrigatório (configure DATABASE_URL ou DEMO_MODE=true).`);
+  (erro as any).cause = causa;
+  throw erro;
+}
+
 if (!isPrismaActive) {
-  // Use in-memory proxy to prevent connection attempts and suppress prisma:error
+  if (!isBrowser && !IS_DEMO_MODE) {
+    falhaFatalSemBanco('DATABASE_URL ausente ou inválido');
+  }
+  // DEMO_MODE (ou bundle do browser): Proxy em memória, sem tentativas de conexão
   prismaInstance = globalForPrisma.prisma ?? createInMemoryPrismaProxy();
 } else {
   try {
@@ -83,7 +97,8 @@ if (!isPrismaActive) {
     });
     prismaInstance = globalForPrisma.prisma ?? client;
   } catch (err) {
-    console.warn('[Prisma Initialization] Fallback to in-memory mode:', err);
+    if (!IS_DEMO_MODE) falhaFatalSemBanco('Falha ao inicializar o driver Postgres', err);
+    console.warn('[Prisma Initialization] DEMO_MODE: fallback para modo em memória:', err);
     prismaInstance = createInMemoryPrismaProxy();
   }
 }
