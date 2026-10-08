@@ -5,7 +5,43 @@ import { INITIAL_MOCK_TENANTS } from '../data/mockSuperAdmin';
 import { INITIAL_MOCK_PROSPECTS, INITIAL_MOCK_TAX_PROFESSIONALS } from '../data/mockOfficeData';
 import { STRATEGIC_HUBS, ALL_300_MICRO_AGENTS } from '../data/swarmHubsCatalog';
 import { DEFAULT_PARTNER_PROFILE } from './partnerGrowthService';
-import { authFetch as fetch } from './authClient';
+import { authFetch } from './authClient';
+
+// ---------------------------------------------------------------------------
+// P-BE2 · Fim do mock silencioso no cliente.
+// Semente local só é usada quando o SERVIDOR declarou DEMO_MODE (header X-Velatrix-Demo: true).
+// Fora disso: 5xx/rede → evento 'velatrix:servico-indisponivel' (banner) e lista vazia;
+// escritas que falham lançam erro em vez de "ecoar" o dado como se tivesse sido salvo.
+// ---------------------------------------------------------------------------
+export const EVENTO_SERVICO_INDISPONIVEL = 'velatrix:servico-indisponivel';
+let servidorEmDemo = false;
+
+function sinalizarIndisponivel(status: number): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(EVENTO_SERVICO_INDISPONIVEL, { detail: { status } }));
+}
+
+async function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await authFetch(input, init);
+  } catch (err) {
+    if (!servidorEmDemo) sinalizarIndisponivel(0);
+    throw err;
+  }
+  servidorEmDemo = res.headers.get('X-Velatrix-Demo') === 'true';
+  if (res.status >= 500 && !servidorEmDemo) sinalizarIndisponivel(res.status);
+  return res;
+}
+
+function semente<T>(seed: T, vazio: T): T {
+  return servidorEmDemo ? seed : vazio;
+}
+
+function ecoSomenteEmDemo<T>(eco: T): T {
+  if (servidorEmDemo) return eco;
+  throw new Error('Serviço indisponível: a operação não foi persistida.');
+}
 
 export interface PartnerOfficeInfo {
   id: string;
@@ -51,7 +87,7 @@ export async function fetchTenants(): Promise<TenantProfile[]> {
   } catch (err) {
     console.debug('[dataService.fetchTenants] Remote API unreachable, using resilient seed cache:', err);
   }
-  return [...INITIAL_MOCK_TENANTS];
+  return semente([...INITIAL_MOCK_TENANTS], []);
 }
 
 export async function fetchPartnerOffices(): Promise<PartnerOfficeInfo[]> {
@@ -66,7 +102,7 @@ export async function fetchPartnerOffices(): Promise<PartnerOfficeInfo[]> {
   } catch (err) {
     console.debug('[dataService.fetchPartnerOffices] Remote API unreachable, using resilient seed cache:', err);
   }
-  return [DEFAULT_OFFICE];
+  return semente([DEFAULT_OFFICE], []);
 }
 
 export async function fetchProspectLeads(officeId?: string): Promise<ProspectLead[]> {
@@ -82,7 +118,7 @@ export async function fetchProspectLeads(officeId?: string): Promise<ProspectLea
   } catch (err) {
     console.debug('[dataService.fetchProspectLeads] Remote API unreachable, using resilient seed cache:', err);
   }
-  return [...INITIAL_MOCK_PROSPECTS];
+  return semente([...INITIAL_MOCK_PROSPECTS], []);
 }
 
 export async function fetchTaxProfessionals(): Promise<TaxProfessional[]> {
@@ -97,7 +133,7 @@ export async function fetchTaxProfessionals(): Promise<TaxProfessional[]> {
   } catch (err) {
     console.debug('[dataService.fetchTaxProfessionals] Remote API unreachable, using resilient seed cache:', err);
   }
-  return [...INITIAL_MOCK_TAX_PROFESSIONALS];
+  return semente([...INITIAL_MOCK_TAX_PROFESSIONALS], []);
 }
 
 export async function fetchStrategicHubs(): Promise<StrategicHub[]> {
@@ -112,7 +148,7 @@ export async function fetchStrategicHubs(): Promise<StrategicHub[]> {
   } catch (err) {
     console.debug('[dataService.fetchStrategicHubs] Remote API unreachable, using resilient seed cache:', err);
   }
-  return [...STRATEGIC_HUBS];
+  return semente([...STRATEGIC_HUBS], []);
 }
 
 export async function fetchMicroAgents(hubId?: string): Promise<MicroAgentDefinition[]> {
@@ -129,9 +165,9 @@ export async function fetchMicroAgents(hubId?: string): Promise<MicroAgentDefini
     console.debug('[dataService.fetchMicroAgents] Remote API unreachable, using resilient seed cache:', err);
   }
   if (hubId) {
-    return ALL_300_MICRO_AGENTS.filter(a => a.hubId === hubId);
+    return semente(ALL_300_MICRO_AGENTS.filter(a => a.hubId === hubId), []);
   }
-  return [...ALL_300_MICRO_AGENTS];
+  return semente([...ALL_300_MICRO_AGENTS], []);
 }
 
 export async function fetchAuditLedgerEntries(tenantId?: string): Promise<AuditRecord[]> {
@@ -164,7 +200,7 @@ export async function saveAuditLedgerEntry(record: AuditRecord): Promise<AuditRe
   } catch (err) {
     console.debug('[dataService.saveAuditLedgerEntry] Remote API fallback:', err);
   }
-  return record;
+  return ecoSomenteEmDemo(record);
 }
 
 // =========================================================================
@@ -213,7 +249,7 @@ export async function saveTaxCase(caseData: any): Promise<any> {
   } catch (err) {
     console.debug('[dataService.saveTaxCase] Remote API fallback:', err);
   }
-  return caseData;
+  return ecoSomenteEmDemo(caseData);
 }
 
 // =========================================================================
@@ -250,7 +286,7 @@ export async function saveSplitDeal(dealData: any): Promise<any> {
   } catch (err) {
     console.debug('[dataService.saveSplitDeal] Remote API fallback:', err);
   }
-  return dealData;
+  return ecoSomenteEmDemo(dealData);
 }
 
 export async function fetchPayouts(tenantId?: string, officeId?: string): Promise<any[]> {
@@ -284,7 +320,7 @@ export async function savePayout(payoutData: any): Promise<any> {
   } catch (err) {
     console.debug('[dataService.savePayout] Remote API fallback:', err);
   }
-  return payoutData;
+  return ecoSomenteEmDemo(payoutData);
 }
 
 export async function updatePayoutStatusApi(
@@ -340,7 +376,7 @@ export async function saveNfseRecord(nfseData: any): Promise<any> {
   } catch (err) {
     console.debug('[dataService.saveNfseRecord] Remote API fallback:', err);
   }
-  return nfseData;
+  return ecoSomenteEmDemo(nfseData);
 }
 
 // =========================================================================
@@ -360,7 +396,7 @@ export async function saveProspectLead(leadData: Partial<ProspectLead>): Promise
   } catch (err) {
     console.debug('[dataService.saveProspectLead] Remote API fallback:', err);
   }
-  return leadData as ProspectLead;
+  return ecoSomenteEmDemo(leadData as ProspectLead);
 }
 
 export async function updateProspectLeadStage(id: string, stage: string): Promise<boolean> {
@@ -377,7 +413,7 @@ export async function updateProspectLeadStage(id: string, stage: string): Promis
   } catch (err) {
     console.debug(`[dataService.updateProspectLeadStage] Remote API fallback for ${id}:`, err);
   }
-  return true;
+  return ecoSomenteEmDemo(true);
 }
 
 export async function updateProspectLead(id: string, updates: Partial<ProspectLead>): Promise<ProspectLead | null> {
