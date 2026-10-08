@@ -16,7 +16,10 @@
     "test:laudos": "node --experimental-strip-types --no-warnings --test src/documents/laudo/__tests__/*.nodetest.ts src/documents/pericia/__tests__/*.nodetest.ts",
     "test:telemetria": "node --experimental-strip-types --no-warnings --test src/server/telemetria/__tests__/*.nodetest.ts",
     "test:antecipacao": "node --experimental-strip-types --no-warnings --test src/antecipacao/__tests__/*.nodetest.ts src/server/antecipacao/__tests__/*.nodetest.ts",
-    "test:loas": "node --experimental-strip-types --no-warnings --test src/loas/__tests__/*.nodetest.ts"
+    "test:loas": "node --experimental-strip-types --no-warnings --test src/loas/__tests__/*.nodetest.ts",
+    "db:migration": "bash scripts/db/gerar-migration.sh",
+    "db:deploy": "prisma migrate deploy",
+    "test:http": "node --experimental-strip-types --no-warnings --test src/server/http/__tests__/*.nodetest.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

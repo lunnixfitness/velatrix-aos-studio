@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import crypto from 'crypto';
+import { isErroDeBanco, encaminharErrosAsync, responderErroBanco } from './src/server/http/erroBanco';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -461,6 +462,7 @@ export async function createApp() {
   initSeedUsers();
 
   const app = express();
+  encaminharErrosAsync(app); // rejeições async → errorHandler central (503 BANCO_INDISPONIVEL)
 
   // Cloud Run / Google Front End: confia no primeiro proxy para req.ip real e protocolo HTTPS
   app.set('trust proxy', 1);
@@ -474,16 +476,17 @@ export async function createApp() {
     'http://127.0.0.1:5173',
   ].filter(Boolean) as string[];
 
-  app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      if (origin.endsWith('.run.app') || origin.endsWith('.googleusercontent.com') || origin === 'https://app.velatrix.com.br') {
-        return callback(null, true);
-      }
-      return callback(new Error(`Origem não permitida pelo CORS: ${origin}`));
-    },
-    credentials: true
+  // CORS com credenciais: allowlist explícita + same-origin.
+  // NÃO aceitar sufixos genéricos (*.run.app / *.googleusercontent.com): qualquer terceiro
+  // publica um app nesses domínios e passaria a fazer requisições autenticadas com o cookie.
+  // Origem recusada → sem headers CORS (o browser bloqueia); nunca lança erro (evita 500).
+  app.use(cors((req, callback) => {
+    const origin = req.header('Origin');
+    const host = req.header('X-Forwarded-Host') || req.header('Host');
+    const proto = req.header('X-Forwarded-Proto') || req.protocol;
+    const sameOrigin = !!origin && !!host && origin === `${proto}://${host}`;
+    const permitido = !origin || sameOrigin || allowedOrigins.includes(origin);
+    callback(null, { origin: permitido ? origin || false : false, credentials: true });
   }));
 
   // Toda resposta da API leva o header X-Velatrix-Demo: true quando em DEMO_MODE
@@ -670,6 +673,7 @@ app.use(middlewareContextoTelemetria);
         data: tenants
       });
     } catch (error) {
+      if (responderErroBanco(res, error)) return;
       return res.status(500).json({ error: "Erro ao buscar tenants do sistema." });
     }
   });
@@ -794,6 +798,7 @@ app.use(middlewareContextoTelemetria);
         timestamp: new Date()
       });
     } catch (error) {
+      if (responderErroBanco(res, error)) return;
       return res.status(500).json({ error: "Erro crítico ao processar Botão SOS." });
     }
   });
@@ -843,6 +848,7 @@ app.use(middlewareContextoTelemetria);
 
       return res.status(201).json(ameaca);
     } catch (error) {
+      if (responderErroBanco(res, error)) return;
       return res.status(500).json({ error: "Erro ao registrar evento do CyberSpy." });
     }
   });
@@ -949,6 +955,7 @@ app.use(middlewareContextoTelemetria);
         message: `Dados recebidos do ERP [${erpType || 'Universal'}] e autenticados com integridade HMAC.`
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Falha ao processar webhook do ERP', details: err?.message });
     }
   });
@@ -995,6 +1002,7 @@ app.use(middlewareContextoTelemetria);
         receiptVerificationHash: `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Falha ao disparar e-mail', details: err?.message });
     }
   });
@@ -1106,6 +1114,7 @@ app.use(middlewareContextoTelemetria);
         items: tenantFiltered
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Erro ao listar NFS-e', details: err?.message });
     }
   });
@@ -1217,6 +1226,7 @@ app.use(middlewareContextoTelemetria);
         auditLogId: auditLog.id
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Erro ao emitir NFS-e', details: err?.message });
     }
   });
@@ -1273,6 +1283,7 @@ app.use(middlewareContextoTelemetria);
         item: updatedRecord
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Erro na reemissão da NFS-e', details: err?.message });
     }
   });
@@ -1299,6 +1310,7 @@ app.use(middlewareContextoTelemetria);
         rejectionReason: record.rejectionReason
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Erro ao consultar status da NFS-e', details: err?.message });
     }
   });
@@ -1335,6 +1347,7 @@ app.use(middlewareContextoTelemetria);
         dispatchedAt: timestamp
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Erro ao reenviar e-mail de NFS-e', details: err?.message });
     }
   });
@@ -1488,6 +1501,7 @@ app.use(middlewareContextoTelemetria);
         integrations
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1595,6 +1609,7 @@ app.use(middlewareContextoTelemetria);
 
       return res.status(400).json({ success: false, error: `Serviço desconhecido: ${service}` });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({
         success: false,
         latencyMs: Date.now() - startTime,
@@ -1611,6 +1626,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listTenants();
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1620,6 +1636,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listPartnerOffices();
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1630,6 +1647,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listProspectLeads(officeId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1642,6 +1660,7 @@ app.use(middlewareContextoTelemetria);
       }
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1651,6 +1670,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.createProspectLead(req.body);
       res.status(201).json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1661,6 +1681,7 @@ app.use(middlewareContextoTelemetria);
       const success = await dbRepo.updateProspectLeadStage(req.params.id, stage);
       res.json({ success });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1670,6 +1691,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.updateProspectLead(req.params.id, req.body);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1679,6 +1701,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listTaxProfessionals();
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1688,6 +1711,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.updateTaxProfessional(req.params.id, req.body);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1701,6 +1725,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listTaxCalculationCases(tenantId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1713,6 +1738,7 @@ app.use(middlewareContextoTelemetria);
       }
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1722,6 +1748,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.createTaxCalculationCase(req.body);
       res.status(201).json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1736,6 +1763,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listSplitDeals(tenantId, officeId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1748,6 +1776,7 @@ app.use(middlewareContextoTelemetria);
       }
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1757,6 +1786,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.createSplitDeal(req.body);
       res.status(201).json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1768,6 +1798,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listPayouts(tenantId, officeId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1777,6 +1808,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.createPayout(req.body);
       res.status(201).json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1790,6 +1822,7 @@ app.use(middlewareContextoTelemetria);
       }
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1801,6 +1834,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listNfseRecords(tenantId, officeId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1810,6 +1844,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.createNfseRecord(req.body);
       res.status(201).json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1819,6 +1854,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listStrategicHubs();
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1829,6 +1865,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listMicroAgents(hubId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1839,6 +1876,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.listAuditLedgerEntries(tenantId);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -1849,6 +1887,7 @@ app.use(middlewareContextoTelemetria);
       const data = await dbRepo.createAuditLedgerEntry(record);
       res.json({ success: true, data });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -2017,6 +2056,7 @@ app.use(middlewareContextoTelemetria);
         dispatchResult,
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       console.error('[ERP Ingest Exception]:', err);
       return res.status(500).json({
         success: false,
@@ -2087,6 +2127,7 @@ app.use(middlewareContextoTelemetria);
         dispatchResult,
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({
         success: false,
         error: err?.message || 'Erro ao reprocessar evento ERP.'
@@ -2107,6 +2148,7 @@ app.use(middlewareContextoTelemetria);
       }));
       res.json({ success: true, data: safeConnections });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -2127,6 +2169,7 @@ app.use(middlewareContextoTelemetria);
         }
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -2181,6 +2224,7 @@ app.use(middlewareContextoTelemetria);
         }
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -2204,6 +2248,7 @@ app.use(middlewareContextoTelemetria);
         data: result
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -2216,6 +2261,7 @@ app.use(middlewareContextoTelemetria);
       const logs = await dbRepo.listErpEventLogs(tenantId, limit);
       res.json({ success: true, data: logs });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       res.status(500).json({ success: false, error: err?.message });
     }
   });
@@ -2335,6 +2381,7 @@ app.use(middlewareContextoTelemetria);
         document: newDoc
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: 'Falha ao processar payload vetorial', details: err?.message });
     }
   });
@@ -2376,6 +2423,7 @@ app.use(middlewareContextoTelemetria);
         results
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ error: err?.message });
     }
   });
@@ -2685,6 +2733,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         hubs: hubsSummary
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       console.error('[Router API Error] Falha ao recuperar hubs:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2720,6 +2769,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         agents
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       console.error('[Router API Error] Falha ao listar agentes do hub:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2759,6 +2809,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         liveLog
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       console.error('[Router API Error] Erro durante o despacho do evento:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2833,6 +2884,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         logs: queryRes.logs
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2874,6 +2926,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         result
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       console.error('[SWARM PIPELINE ERROR]', err);
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2895,6 +2948,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         log
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2916,6 +2970,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         items: serverDlqItems
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2942,6 +2997,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         liveLog: result.liveLog
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       console.error('[DLQ RETRY ERROR]', err);
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2962,6 +3018,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         items: serverDlqItems
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2996,6 +3053,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
 
       return res.status(201).json({ success: true, item: newItem });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3050,6 +3108,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         certificates: safeMetadataList 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3083,6 +3142,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         certificate: newCert 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3110,6 +3170,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         result 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3137,6 +3198,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         receipt 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3151,6 +3213,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         receipts 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3170,6 +3233,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         subaccounts 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3204,6 +3268,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         subaccount: newSubaccount 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3237,6 +3302,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         instruction 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3266,6 +3332,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         result
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3285,6 +3352,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         logs 
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3297,6 +3365,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       const config = complianceEngine.getTenantConfig(req.params.tenantId);
       return res.json({ success: true, config });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3306,6 +3375,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       complianceEngine.configurarTenant(req.body);
       return res.json({ success: true, message: 'Configuração salva no servidor' });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3315,6 +3385,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       const result = await complianceEngine.executarKycCedente(req.body);
       return res.json({ success: true, result });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3324,6 +3395,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       const cadeia = complianceEngine.getCadeiaCessoes(req.params.cessaoId);
       return res.json({ success: true, cadeia });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3333,6 +3405,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       const instrucao = await complianceEngine.gerarInstrucaoManualSplit(req.body);
       return res.json({ success: true, instrucao });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3342,6 +3415,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       const comprovantes = complianceEngine.getComprovantesManuais(req.params.cessaoId);
       return res.json({ success: true, comprovantes });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3351,6 +3425,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
       const split = await complianceEngine.executarBaaSSplit(req.body);
       return res.json({ success: true, ...split });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3399,6 +3474,7 @@ Processe o evento, execute a deliberação do Enxame de Agentes e gere o JSON ex
         sheets
       });
     } catch (err: any) {
+      if (responderErroBanco(res, err)) return;
       return res.status(500).json({ success: false, error: `Falha ao processar planilha: ${err.message}` });
     }
   });
@@ -3445,11 +3521,22 @@ registerAntecipacaoRoutesPadrao(app); // Antecipação de precatórios & RPVs (m
       }
       return;
     }
+    // P-BE2: falha de banco fora de DEMO_MODE → 503 explícito, nunca dado fictício.
+    if (isErroDeBanco(err)) {
+      console.error('[AOS Server] BANCO_INDISPONIVEL:', err?.message, err?.cause?.message ?? '');
+      if (!res.headersSent) {
+        res.setHeader('Retry-After', '5');
+        return res.status(503).json({ erro: 'BANCO_INDISPONIVEL' });
+      }
+      return;
+    }
     console.error('[AOS Server Unhandled Error]:', err);
     if (!res.headersSent) {
-      res.status(err?.status || 500).json({
+      const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+      const expor = process.env.NODE_ENV !== 'production' || status < 500;
+      res.status(status).json({
         error: 'Erro interno no servidor AOS.',
-        details: err?.message || 'Falha não tratada.'
+        details: expor ? (err?.message || 'Falha não tratada.') : undefined,
       });
     }
   });
