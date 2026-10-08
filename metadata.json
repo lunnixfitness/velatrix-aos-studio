@@ -1,0 +1,6 @@
+{
+  "name": "VELATRIX - Sistema Operacional Autônomo",
+  "description": "Decisões Operacionais Autônomas, Seguras e Criptograficamente Auditáveis em Tempo Real com Barramento Semântico e Enxame de Agentes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

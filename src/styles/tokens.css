@@ -1,0 +1,23 @@
+:root {
+  --canvas: #FFFFFF;
+  --surface: #FAFBFC;
+  --surface-hover: #F4F6F9;
+  --surface-elev: #FFFFFF;
+  --ink: #0A1628;
+  --ink-2: #1F2D3F;
+  --ink-mute: #5A6B7C;
+  --ink-soft: #8A99AD;
+  --hairline: #EAEEF3;
+  --hairline-strong: #D5DCE4;
+  --accent: #0B4571;
+  --accent-bright: #29B5E8;
+  --accent-soft: #EEF6FB;
+  --accent-tint: #F6FAFD;
+  --good: #0F7C4A;
+  --good-soft: #E7F5EE;
+  --warn: #B96A00;
+  --warn-soft: #FCF3E4;
+  --crit: #B4321F;
+  --crit-soft: #FBEBE7;
+  --spine: #D5DCE4;
+}

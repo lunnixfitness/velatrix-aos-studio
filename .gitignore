@@ -1,0 +1,11 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# P18: journal do store enterprise (dados de tenant — nunca versionar)
+.data/

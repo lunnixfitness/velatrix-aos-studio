@@ -1,0 +1,59 @@
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development UV_THREADPOOL_SIZE=16 tsx server.ts",
+    "build": "prisma generate && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "NODE_ENV=production UV_THREADPOOL_SIZE=16 node dist/server.cjs",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:enterprise": "node --experimental-strip-types --no-warnings --test src/enterprise/__tests__/*.nodetest.ts",
+    "test:autos": "node --experimental-strip-types --no-warnings --test src/server/autos/__tests__/*.nodetest.ts src/documents/autos/__tests__/selecaoPaginas.nodetest.ts src/documents/autos/__tests__/qualidadeOcr.nodetest.ts",
+    "carga:autos": "node --experimental-strip-types --no-warnings scripts/carga/cargaAutos.ts",
+    "carga:autos:cpu": "CENARIO=cpu node --experimental-strip-types --no-warnings scripts/carga/cargaAutos.ts",
+    "test:laudos": "node --experimental-strip-types --no-warnings --test src/documents/laudo/__tests__/*.nodetest.ts src/documents/pericia/__tests__/*.nodetest.ts",
+    "test:telemetria": "node --experimental-strip-types --no-warnings --test src/server/telemetria/__tests__/*.nodetest.ts",
+    "test:antecipacao": "node --experimental-strip-types --no-warnings --test src/antecipacao/__tests__/*.nodetest.ts src/server/antecipacao/__tests__/*.nodetest.ts",
+    "test:loas": "node --experimental-strip-types --no-warnings --test src/loas/__tests__/*.nodetest.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.9.1",
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/cors": "^2.8.19",
+    "@vitejs/plugin-react": "^5.0.4",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "pdfjs-dist": "^6.3.289",
+    "pg": "^8.23.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "tesseract.js": "^6.0.0",
+    "vite": "^6.2.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "@types/pg": "^8.23.1",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.0",
+    "prisma": "^7.9.1",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.3",
+    "vitest": "^5.0.1"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

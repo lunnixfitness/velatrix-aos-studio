@@ -1,0 +1,60 @@
+{{!-- 
+  TEMPLATE OFICIAL DE PROPOSTA VINCULANTE DE CESSÃO DE CRÉDITO JUDICIAL (PRECATÓRIO)
+  Base Legal: Art. 100, §§ 13 e 14 da CF/88; Lei 8.935/94; Resolução CNJ nº 235/2016
+  Velatrix AOS v3.0 - Precatórios & Liquidez Judicial
+--}}
+=============================================================================================
+             INSTRUMENTO PARTICULAR DE PROPOSTA VINCULANTE DE CESSÃO DE CRÉDITO
+                                (PRECATÓRIO JUDICIAL)
+=============================================================================================
+
+ID DA PROPOSTA: {{propostaId}}
+DATA DE EMISSÃO: {{dataEmissao}}
+DATA LIMITE DE VALIDADE: {{validadeData}} ({{validadeDias}} dias corridos)
+ENCLAVE DE PRECIFICAÇÃO: Velatrix AOS Cripto-Custódia (OAB/CRC)
+
+1. QUALIFICAÇÃO DO PRECATÓRIO & DO JUÍZO DE ORIGEM
+---------------------------------------------------------------------------------------------
+Número do Ofício Requisitório: {{numeroOficio}}
+Número dos Autos da Execução: {{numeroProcesso}}
+Tribunal de Origem: {{tribunal}}
+Ente Público Devedor: {{enteDevedor}} (Esfera: {{esfera}})
+Ordem Cronológica / Inscrição LOA: {{anoLOA}} (Regime: {{regime}})
+Natureza do Crédito: {{natureza}} (Preferência Constitucional Art. 100 § 1º)
+
+2. QUALIFICAÇÃO DO CREDOR ORIGINÁRIO (CEDENTE)
+---------------------------------------------------------------------------------------------
+Nome / Razão Social: {{credorNome}}
+CPF / CNPJ: {{credorCpfCnpj}}
+Status de Regularidade KYC/PLD: {{kycStatus}} (Circular BCB 3.978/2020)
+Hash da Auditoria de Compliance: {{kycAuditHash}}
+
+3. LIQUIDAÇÃO ECONÔMICA, DESÁGIO & VALOR LÍQUIDO DISPONÍVEL
+---------------------------------------------------------------------------------------------
+Valor Original Histórico: R$ {{valorOriginal}}
+Data-Base do Cálculo: {{dataBaseCalculo}}
+Valor de Face Atualizado (SELIC Pura - EC 113/2021): R$ {{valorFaceAtualizado}}
+Deságio Comercial Aplicado: {{desagioPercentual}}%
+Valor Presente Líquido (VPL): R$ {{vplCalculado}}
+Taxa Anual de Desconto (SELIC Futura + Prêmio de Risco): {{taxaDescontoAplicadaAa}}% a.a.
+Score de Segurança Jurídica do Título: {{scoreSegurancaJuridica}}/100 ({{classificacaoScore}})
+
+VALOR LÍQUIDO A SER DEPOSITADO EM CONTA DO CREDOR:
+>>> R$ {{valorLiquidoCredor}} <<<
+
+4. CONDIÇÕES RESOLUTIVAS & FORMALIZAÇÃO
+---------------------------------------------------------------------------------------------
+a) Lavratura compulsória de Escritura Pública Notarial de Cessão de Direitos Creditórios
+   em Cartório de Notas, em conformidade com o Art. 100 § 13 da CF e Lei 8.935/1994.
+b) Protocolo imediato de Petição de Habilitação do Cessionário perante o Tribunal de Origem.
+c) Publicação do extrato da cessão no Diário de Justiça Eletrônico Nacional (DJEN).
+d) Liquidação financeira em conta escrow via BaaS Pix Automático (Celcoin).
+
+5. ASSINATURA DIGITAL ICP-BRASIL & CADEIA DE CUSTÓDIA
+---------------------------------------------------------------------------------------------
+Hash Criptográfico SHA-256 do Termo: {{hashSha256Termo}}
+Certificação Exigida: Assinatura Digital Avançada / Qualificada ICP-Brasil A1 (Lei 14.063/2020)
+
+__________________________________________        __________________________________________
+CEDENTE (TITULAR ORIGINÁRIO)                     CESSIONÁRIO (VELATRIX / FUNDO ADQUIRENTE)
+CPF/CNPJ: {{credorCpfCnpj}}                      CNPJ Cessionário

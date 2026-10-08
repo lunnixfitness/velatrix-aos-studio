@@ -1,0 +1,1464 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS DE GOVERNANÇA, PERFIS E STATUS
+// ==========================================
+
+enum UserRole {
+  OWNER
+  CONTADOR_RT
+  ANALISTA
+  ADVOGADO_PARCEIRO
+  SUPER_ADMIN
+  ADMIN_VELATRIX
+  CONTADOR_PARCEIRO
+  OPERADOR
+}
+
+enum StatusTenant {
+  NORMAL
+  ALERTA_CONECTOR
+  CLUSTER_INATIVO
+  SUSPENSO_SOS
+  ACTIVE
+  WARNING
+  SUSPENDED
+  SHADOW_MODE
+}
+
+enum LeadStage {
+  LEAD
+  PROPOSAL_SENT
+  NEGOTIATION
+  CLOSED
+}
+
+enum LeadOrigin {
+  LANDING_PAGE
+  MAPS_MANUAL
+  INDICACAO_PARCEIRO
+}
+
+enum TaxRegime {
+  LUCRO_REAL
+  LUCRO_PRESUMIDO
+  SIMPLES_NACIONAL
+  BIFASICO
+  PLURIFASICO
+}
+
+enum ReportClassification {
+  RESUMO_EXECUTIVO_PRELIMINAR
+  LAUDO_PERICIAL_COMPLETO
+}
+
+enum PayoutStatus {
+  PENDENTE
+  EM_PROCESSAMENTO
+  LIQUIDADO
+  FALHA
+  CANCELADO
+}
+
+enum PayoutMethod {
+  PIX_CNPJ
+  PIX_CPF
+  PIX_EMAIL
+  PIX_TELEFONE
+  PIX_ALEATORIA
+  TED
+  CONTA_BANCARIA
+}
+
+enum NfseStatus {
+  EMITIDA
+  PROCESSANDO
+  REJEITADA
+  CANCELADA
+}
+
+enum NfseOperationType {
+  SAAS_SUBSCRIPTION
+  TAX_RECOVERY_SUCCESS_FEE
+}
+
+enum HubHealthStatus {
+  HEALTHY
+  DEGRADED
+  WARNING
+}
+
+enum AgentExecutionStatus {
+  IDLE
+  LISTENING
+  ANALYZING
+  EXECUTING
+  BLOCKED_HUMAN_IN_THE_LOOP
+  FALLBACK_DLQ
+  SUCCESS
+  ACTIVE
+  STANDBY_ON_DEMAND
+}
+
+enum AgentRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AgentRuntimeMode {
+  SERVERLESS_COLD
+  CONTAINER_WARM
+  STANDBY_ON_DEMAND
+  CONTAINER_SPAWNING
+}
+
+enum LedgerStatus {
+  EXECUTED
+  ADJUSTED
+  REJECTED
+  PENDING
+  BLOCKED_FRAUD
+  QUARANTINE
+}
+
+// ==========================================
+// ENTIDADE 1: TENANT (EMPRESA CLIENTE)
+// ==========================================
+
+model Tenant {
+  id                    String       @id @default(uuid())
+  slug                  String?      @unique
+  nomeEmpresa           String
+  razaoSocial           String       @default("Empresa Cliente S.A.")
+  cnpj                  String       @unique
+  plano                 String       @default("STARTER") // 'STARTER', 'PRO', 'ENTERPRISE', 'REGULATED'
+  status                StatusTenant @default(NORMAL)
+  provedoresAtivos      Json?        // Configuração de provedores KYC, BaaS, etc. do próprio tenant
+  logoUrl               String?
+  corPrimaria           String       @default("#0284c7")
+  dominio               String?      // ex: "monteiro.velatrix.app"
+  ativoEm               DateTime     @default(now())
+  cancelacaoEm          DateTime?
+  conectorERP           String       // 'TOTVS Protheus', 'SAP S/4HANA', 'Senior ERP', etc.
+  mrr                   Decimal      @default(0.0) @db.Decimal(12, 2)
+  tokensConsumedMonthly BigInt       @default(0)
+  consumoGeminiGb       Float        @default(0.0)
+  agentesAtivos         Int          @default(0)
+  chaveApiHash          String?      @unique
+  sector                String?      // e.g. 'manufacturing', 'retail', 'agribusiness'
+  sectorLabel           String?
+  city                  String?
+  state                 String?
+  connectedChannels     String[]     @default([])
+  enabledServices       String[]     @default([])
+  shadowModeExpiresAt   DateTime?
+  trialExpiresAt        DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  // Relacionamentos
+  users                 User[]
+  calculationCases      TaxCalculationCase[]
+  splitDeals            SplitDeal[]
+  payouts               Payout[]
+  nfseRecords           NfseRecord[]
+  prospectLeads         ProspectLead[]
+  swarmLiveLogs         SwarmLiveLog[]
+  auditLedgerEntries    AuditLedgerEntry[]
+  logsAudit             AuditLog[]
+  threats               CyberSpyThreat[]
+  erpConnections        ErpConnection[]
+  erpEventLogs          ErpEventLog[]
+
+  // Isolamento Multi-Tenancy Precatórios & Liquidez Judicial
+  cedentes              Cedente[]
+  cessionarios          Cessionario[]
+  precatorios           Precatorio[]
+  scoreSnapshots        ScoreSnapshot[]
+  proposedTerms         ProposedTerm[]
+  cessoes               Cessao[]
+  cessoesLedger         CessaoLedger[]
+  precatorioMonitores   PrecatorioMonitor[]
+  compensacaoSimulacoes CompensacaoSimulation[]
+
+  // Licenciamento & Billing SaaS
+  billingSubscription   BillingSubscription?
+  billingInvoices       BillingInvoice[]
+
+  // Novos modelos P-BE2 (Consultoria Velatrix & Enterprise Store)
+  workItems             WorkItem[]
+  ledgerEntries         LedgerEntry[]
+  laudos                Laudo[]
+  laudoSeals            LaudoSeal[]
+  casosLoas             CasoLoas[]
+  outboxEvents          OutboxEvent[]
+  creditosAntecipacao   CreditoAntecipacao[]
+  creditoEventos        CreditoEvento[]
+  telemetriasHora       TelemetriaHora[]
+  certificadosA1        CertificadoA1[]
+  leads                 Lead[]
+  casos                 Caso[]
+  consentimentos        Consentimento[]
+  contratosServico      ContratoServico[]
+  faturas               Fatura[]
+  licencasAdvogado      LicencaAdvogado[]
+}
+
+// ==========================================
+// ENTIDADE 2: PARTNER OFFICE (ESCRITÓRIO PARCEIRO)
+// ==========================================
+
+model PartnerOffice {
+  id                         String   @id @default(uuid())
+  name                       String   // Razão social (ex: Vasconcelos & Associados Advocacia Tributária)
+  tradeName                  String?  // Nome fantasia
+  cnpj                       String?  @unique
+  oabOrCrc                   String   // Ex: 'OAB/SP 284.910', 'CRC/SP 1SP284560'
+  primaryLawyerOrAccountant  String   // Nome do responsável técnico
+  email                      String   @unique
+  phone                      String?
+  brandPrimaryColor          String   @default("#4F46E5") // White-label primary
+  brandSecondaryColor        String   @default("#06B6D4") // White-label secondary
+  logoUrl                    String?
+  defaultSplitPct            Decimal  @default(70.00) @db.Decimal(5, 2) // Default 70% parceiro
+  defaultVelatrixPct         Decimal  @default(30.00) @db.Decimal(5, 2) // Default 30% Velatrix
+  pixKeyType                 String?  // 'CNPJ', 'CPF', 'EMAIL', 'PHONE', 'RANDOM'
+  pixKey                     String?
+  bankCode                   String?
+  bankName                   String?
+  agency                     String?
+  accountNumber              String?
+  isVerified                 Boolean  @default(true)
+  status                     String   @default("ACTIVE") // 'ACTIVE', 'PENDING', 'SUSPENDED'
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  // Relacionamentos
+  users                      User[]
+  splitDeals                 SplitDeal[]
+  calculationCases           TaxCalculationCase[]
+  payouts                    Payout[]
+  nfseRecords                NfseRecord[]
+  assignedLeads              ProspectLead[]
+}
+
+// ==========================================
+// ENTIDADE 3: USER (COM PAPÉIS RBAC)
+// ==========================================
+
+model User {
+  id                   String       @id @default(uuid())
+  tenantId             String       @default("tenant_demo")
+  name                 String
+  email                String
+  passwordHash         String
+  role                 UserRole
+  mfaSecret            String?
+  mfaEnabled           Boolean      @default(false)
+  tokenVersion         Int          @default(0)
+  department           String?
+  avatar               String?
+  phone                String?
+  oabOrCrc             String?      // OAB ou CRC se profissional técnico
+  registrationNumber   String?
+  active               Boolean      @default(true)
+  partnerOfficeId      String?      // Preenchido para ADVOGADO_PARCEIRO e CONTADOR_PARCEIRO
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  // Relacionamentos
+  tenant               Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions             Session[]
+  partnerOffice        PartnerOffice?  @relation(fields: [partnerOfficeId], references: [id], onDelete: SetNull)
+  calculationCasesCreated TaxCalculationCase[] @relation("CaseAuthor")
+  assignedLeads        ProspectLead[]  @relation("AssignedProfessional")
+  auditLedgerEntries   AuditLedgerEntry[] @relation("ActorUser")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// ==========================================
+// ENTIDADE 4: PROSPECT LEAD (QUALIFICAÇÃO & PIPELINE)
+// ==========================================
+
+model ProspectLead {
+  id                        String      @id @default(uuid())
+  name                      String      // Razão Social
+  tradeName                 String?     // Nome Fantasia
+  cnpj                      String      @unique
+  sector                    String
+  sectorLabel               String?
+  stage                     LeadStage   @default(LEAD)
+  origem                    LeadOrigin  @default(LANDING_PAGE)
+  responsibleName           String?
+  estimatedMrrBrl           Decimal?    @db.Decimal(12, 2)
+  cnae                      String?
+  regimeTributarioEstimado  String?
+  tesesAplicaveis           String[]    @default([])
+  scoreAderencia            Int?        // 0 a 100
+  faixaCreditoEstimado      String?     // Ex: 'R$ 420.000 - R$ 980.000'
+  dataDiagnostico           DateTime?
+  autoDiagnosticoCompleto   Boolean     @default(false)
+  lastContactDate           DateTime?
+  notes                     String?     @db.Text
+  tenantId                  String?     // Se convertido ou em onboarding
+  partnerOfficeId           String?     // Escritório parceiro responsável
+  assignedUserId            String?     // Profissional alocado
+  assignedAt                DateTime?
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
+
+  // Relacionamentos
+  tenant                    Tenant?        @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  partnerOffice             PartnerOffice? @relation(fields: [partnerOfficeId], references: [id], onDelete: SetNull)
+  assignedUser              User?          @relation("AssignedProfessional", fields: [assignedUserId], references: [id], onDelete: SetNull)
+}
+
+// ==========================================
+// ENTIDADE 5: TAX CALCULATION CASE (CASO PERICIAL)
+// ==========================================
+
+model TaxCalculationCase {
+  id                           String               @id @default(uuid())
+  caseNumber                   String               @unique // Ex: PROC-2026-T69-0941
+  tenantId                     String
+  partnerOfficeId              String?
+  authorUserId                 String?
+  taxRegime                    TaxRegime
+  tese                         String               // Ex: 'TEMA_69_STF_ICMS_PIS_COFINS'
+  teseTitle                    String
+  teseLegalBasis               String?
+  protocolDate                 DateTime
+  consolidationDate            DateTime
+  prescribedCutoffDate         DateTime             // 5 anos anteriores ao protocolo
+  reportClassification         ReportClassification @default(LAUDO_PERICIAL_COMPLETO)
+  readinessPercentage          Decimal              @db.Decimal(5, 2) // 0 - 100%
+  totalGrossAnalyzed           Decimal              @db.Decimal(14, 2)
+  totalExcludedTaxAmount       Decimal              @db.Decimal(14, 2)
+  totalPrincipalCredit         Decimal              @db.Decimal(14, 2) // PRINCIPAL PURO
+  totalSelicInterest           Decimal              @db.Decimal(14, 2) // JUROS SELIC PURO
+  totalUpdatedCredit           Decimal              @db.Decimal(14, 2) // PRINCIPAL + SELIC
+  prescribedPrincipalBlocked   Decimal              @db.Decimal(14, 2) // Bloqueado prescrito
+  totalItemsProcessed          Int                  @default(0)
+  validItemsCount              Int                  @default(0)
+  prescribedItemsBlocked       Int                  @default(0)
+  divergencesXmlSpedCount      Int                  @default(0)
+  conservativeSavingsProtected Decimal              @default(0.0) @db.Decimal(14, 2)
+  auditHashSha256              String               // SHA-256 canônico de 64 caracteres hex
+  canonicalPayloadJson         Json?                // Serialização determinística do laudo
+  syntheticMonthlyData         Json?                // Resumo mensal consolidado
+  complianceAlerts             Json?                // Alertas periciais e travas
+  status                       String               @default("CALCULADO") // 'RASCUNHO', 'CALCULADO', 'HOMOLOGADO', 'LIQUIDADO'
+  createdAt                    DateTime             @default(now())
+  updatedAt                    DateTime             @updatedAt
+
+  // Relacionamentos
+  tenant                       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  partnerOffice                PartnerOffice?       @relation(fields: [partnerOfficeId], references: [id], onDelete: SetNull)
+  authorUser                   User?                @relation("CaseAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  splitDeals                   SplitDeal[]
+  payouts                      Payout[]
+  nfseRecords                  NfseRecord[]
+}
+
+// ==========================================
+// ENTIDADE 6: SPLIT DEAL (PERCENTUAIS POR CASO/PARCEIRO)
+// ==========================================
+
+model SplitDeal {
+  id                     String              @id @default(uuid())
+  dealCode               String              @unique // Ex: DEAL-2026-9812
+  dealTitle              String
+  tenantId               String
+  partnerOfficeId        String
+  taxCalculationCaseId   String?
+  estimatedBenefitAmount Decimal             @db.Decimal(14, 2)
+  successFeePercent      Decimal             @default(20.00) @db.Decimal(5, 2) // Ex: 20%
+  totalSuccessFeeAmount  Decimal             @db.Decimal(14, 2)
+  partnerSplitPercent    Decimal             @default(70.00) @db.Decimal(5, 2) // Ex: 70%
+  partnerSplitAmount     Decimal             @db.Decimal(14, 2)
+  velatrixSplitPercent   Decimal             @default(30.00) @db.Decimal(5, 2) // Ex: 30%
+  velatrixSplitAmount    Decimal             @db.Decimal(14, 2)
+  status                 String              @default("ACTIVE") // 'DRAFT', 'ACTIVE', 'SETTLED', 'CANCELLED'
+  splitWebhookUrl        String?
+  contractDocHash        String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  // Relacionamentos
+  tenant                 Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  partnerOffice          PartnerOffice       @relation(fields: [partnerOfficeId], references: [id], onDelete: Cascade)
+  taxCalculationCase     TaxCalculationCase? @relation(fields: [taxCalculationCaseId], references: [id], onDelete: SetNull)
+  payouts                Payout[]
+  nfseRecords            NfseRecord[]
+}
+
+// ==========================================
+// ENTIDADE 7: PAYOUT (LIQUIDAÇÃO DE SPLIT & ESCROW)
+// ==========================================
+
+model Payout {
+  id                       String              @id @default(uuid())
+  payoutNumber             String              @unique // Ex: PAY-2026-00412
+  tenantId                 String
+  partnerOfficeId          String
+  splitDealId              String?
+  taxCalculationCaseId     String?
+  grossAmount              Decimal             @db.Decimal(14, 2)
+  partnerAmount            Decimal             @db.Decimal(14, 2)
+  velatrixAmount           Decimal             @db.Decimal(14, 2)
+  method                   PayoutMethod        @default(PIX_CNPJ)
+  status                   PayoutStatus        @default(PENDENTE)
+  escrowAccountIspb        String?             // Conta Transitória Escrow D+0
+  destinationPixKeyMasked  String?
+  destinationBank          String?
+  transactionId            String?             // EndToEndId PIX / Comprovante
+  scheduledDate            DateTime?
+  settledAt                DateTime?
+  proofHashSha256          String?
+  receiptUrl               String?
+  failureReason            String?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  // Relacionamentos
+  tenant                   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  partnerOffice            PartnerOffice       @relation(fields: [partnerOfficeId], references: [id], onDelete: Cascade)
+  splitDeal                SplitDeal?          @relation(fields: [splitDealId], references: [id], onDelete: SetNull)
+  taxCalculationCase       TaxCalculationCase? @relation(fields: [taxCalculationCaseId], references: [id], onDelete: SetNull)
+  nfseRecords              NfseRecord[]
+}
+
+// ==========================================
+// ENTIDADE 8: NFSE RECORD (EMISSÃO DUAL DE NFS-E)
+// ==========================================
+
+model NfseRecord {
+  id                       String              @id @default(uuid())
+  nfseNumber               String?             // Ex: "NFS-e 2026/0009412"
+  rpsNumber                String?
+  rpsSerie                 String?
+  verificationCode         String?
+  tenantId                 String
+  partnerOfficeId          String?
+  splitDealId              String?
+  payoutId                 String?
+  taxCalculationCaseId     String?
+  operationType            NfseOperationType   @default(TAX_RECOVERY_SUCCESS_FEE)
+  operationDescription     String
+  cnae                     String?
+  itemListaServico         String?             // Ex: '17.01'
+  grossAmountBrl           Decimal             @db.Decimal(14, 2)
+  partnerSplitPct          Decimal             @db.Decimal(5, 2)
+  partnerSplitAmountBrl    Decimal             @db.Decimal(14, 2)
+  velatrixRetainedAmountBrl Decimal            @db.Decimal(14, 2) // Base de cálculo da Velatrix
+  issRatePct               Decimal             @db.Decimal(5, 2)
+  issAmountBrl             Decimal             @db.Decimal(10, 2)
+  status                   NfseStatus          @default(PROCESSANDO)
+  emissionDate             DateTime?
+  municipalProtocol        String?
+  municipalDigestSha256    String?
+  prefeitura               String?
+  rejectionReason          String?
+  rawMunicipalResponse     Json?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  // Relacionamentos
+  tenant                   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  partnerOffice            PartnerOffice?      @relation(fields: [partnerOfficeId], references: [id], onDelete: SetNull)
+  splitDeal                SplitDeal?          @relation(fields: [splitDealId], references: [id], onDelete: SetNull)
+  payout                   Payout?             @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  taxCalculationCase       TaxCalculationCase? @relation(fields: [taxCalculationCaseId], references: [id], onDelete: SetNull)
+}
+
+// ==========================================
+// ENTIDADE 9: STRATEGIC HUB (CATÁLOGO DE ENXAMES)
+// ==========================================
+
+model StrategicHub {
+  id                    String          @id // Ex: 'hub-fiscal', 'hub-supply', 'hub-treasury'
+  code                  String          @unique // Ex: 'HUB-01-FISCAL'
+  name                  String
+  shortName             String
+  description           String          @db.Text
+  color                 String          // Hex color (ex: '#10B981')
+  accentBg              String?
+  borderAccent          String?
+  iconName              String          // 'Receipt', 'Truck', etc.
+  totalAgentsCount      Int             @default(0)
+  activeAgentsCount     Int             @default(0)
+  standbyAgentsCount    Int             @default(0)
+  eventsProcessedCount  BigInt          @default(0)
+  totalEconomyBrl       Decimal         @default(0.0) @db.Decimal(16, 2)
+  totalBleedMitigatedBrl Decimal        @default(0.0) @db.Decimal(16, 2)
+  avgLatencyMs          Int             @default(20)
+  healthStatus          HubHealthStatus @default(HEALTHY)
+  subCategories         String[]        @default([])
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  // Relacionamentos
+  microAgents           MicroAgent[]
+  swarmLiveLogs         SwarmLiveLog[]
+}
+
+// ==========================================
+// ENTIDADE 10: MICRO AGENT (CATÁLOGO DE 300 AGENTES)
+// ==========================================
+
+model MicroAgent {
+  id                          String               @id // Ex: 'agent-001', 'agent-fisc-icms'
+  codeName                    String               @unique // Ex: 'AG-FISC-01'
+  hubId                       String
+  name                        String
+  subCategory                 String
+  description                 String               @db.Text
+  triggerKeywords             String[]             @default([])
+  erpEndpoint                 String?
+  status                      AgentExecutionStatus @default(ACTIVE)
+  runtimeMode                 AgentRuntimeMode     @default(CONTAINER_WARM)
+  riskLevel                   AgentRiskLevel       @default(MEDIUM)
+  processedEventsCount        BigInt               @default(0)
+  mitigatedBleedBrl           Decimal              @default(0.0) @db.Decimal(16, 2)
+  generatedEconomyBrl         Decimal              @default(0.0) @db.Decimal(16, 2)
+  avgLatencyMs                Int                  @default(20)
+  successRatePct              Decimal              @default(99.5) @db.Decimal(5, 2)
+  requiresMultiSigThresholdBrl Decimal?            @db.Decimal(14, 2)
+  lastHeartbeat               DateTime?
+  sampleActionDescription     String?
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @updatedAt
+
+  // Relacionamentos
+  hub                         StrategicHub         @relation(fields: [hubId], references: [id], onDelete: Cascade)
+  swarmLiveLogs               SwarmLiveLog[]
+}
+
+// ==========================================
+// ENTIDADE 11: SWARM LIVE LOG (EXECUÇÃO AUTÔNOMA)
+// ==========================================
+
+model SwarmLiveLog {
+  id                 String        @id @default(uuid())
+  tenantId           String?
+  hubId              String?
+  agentId            String?
+  agentName          String
+  actionTitle        String
+  resultSummary      String        @db.Text
+  rawFormattedLog    String        @db.Text
+  economyBrl         Decimal?      @db.Decimal(14, 2)
+  bleedPreventedBrl   Decimal?      @db.Decimal(14, 2)
+  severity           String        @default("INFO") // 'INFO', 'SUCCESS', 'WARNING', 'CRITICAL'
+  status             String        @default("CONFORME")
+  targetEntity       String?
+  erpEndpoint        String?
+  erpResponseCode    Int?
+  requiresMultiSig   Boolean       @default(false)
+  ledgerHash         String        // Hash SHA-256
+  previousLedgerHash String?
+  createdAt          DateTime      @default(now())
+
+  // Relacionamentos
+  tenant             Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  hub                StrategicHub? @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  microAgent         MicroAgent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+}
+
+// ==========================================
+// ENTIDADE 12: AUDIT LEDGER ENTRY (LEDGER IMUTÁVEL)
+// ==========================================
+
+model AuditLedgerEntry {
+  id                   String       @id @default(uuid())
+  chainIndex           BigInt?
+  tenantId             String?
+  userId               String?
+  eventId              String
+  eventTitle           String
+  sector               String?
+  jurisdiction         String?      @default("BR")
+  agentsInvolved       String[]     @default([])
+  decisionSummary      String       @db.Text
+  decisionAstJson      Json?        // Snapshot AST do card de decisão crítica
+  executionPayloadJson Json?        // Payload de despacho para ERP/Webhook
+  status               LedgerStatus @default(EXECUTED)
+  signatures           Json?        // Quórum multi-sig de aprovação
+  executionReceipt     String?      @db.Text
+  invariantSnapshot    String[]     @default([])
+  recordHash           String       // SHA-256 do bloco
+  previousRecordHash   String       // Elo com bloco anterior (blockchain-like)
+  requiredSignatures   Int          @default(1)
+  timestamp            DateTime     @default(now())
+  createdAt            DateTime     @default(now())
+
+  // Relacionamentos
+  tenant               Tenant?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                 User?        @relation("ActorUser", fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ==========================================
+// MODELOS DE SEGURANÇA & LOG PREEXISTENTES
+// ==========================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  acao      String
+  usuario   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model CyberSpyThreat {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tipoAmeaca  String   // 'PIX_FRAUD', 'DARK_WEB_LEAK', 'INVENTORY_GLITCH'
+  nivelRisco  String   // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+  detalhes    Json
+  bloqueado   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// ENUMS DE CONECTORES ERP & WEBHOOKS
+// ==========================================
+
+enum ErpProvider {
+  TOTVS
+  SAP
+  CUSTOM
+}
+
+enum ErpAuthType {
+  API_KEY
+  OAUTH2
+  HMAC_SIGNATURE
+}
+
+enum ErpConnectionStatus {
+  ATIVO
+  PENDENTE
+  ERRO
+}
+
+enum ErpEventStatus {
+  RECEBIDO
+  PROCESSADO
+  ERRO
+}
+
+enum ErpDirection {
+  INBOUND
+  OUTBOUND
+}
+
+// ==========================================
+// ENTIDADE 13: ERP CONNECTION (CONECTOR MULTI-TENANT)
+// ==========================================
+
+model ErpConnection {
+  id                String              @id @default(uuid())
+  tenantId          String
+  provider          ErpProvider         @default(TOTVS)
+  baseUrl           String
+  authType          ErpAuthType         @default(HMAC_SIGNATURE)
+  credentialRef     String              // Apenas alias/referência segura (NUNCA credencial pura)
+  webhookSecretHash String              // SHA-256 do webhook secret para validação HMAC
+  status            ErpConnectionStatus @default(PENDENTE)
+  lastSyncAt        DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relacionamento
+  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventLogs         ErpEventLog[]
+
+  @@unique([tenantId, provider])
+}
+
+// ==========================================
+// ENTIDADE 14: ERP EVENT LOG (AUDITORIA & DLQ)
+// ==========================================
+
+model ErpEventLog {
+  id                String              @id @default(uuid())
+  tenantId          String
+  connectionId      String?
+  provider          String              // 'TOTVS', 'SAP', 'CUSTOM'
+  direction         ErpDirection        @default(INBOUND)
+  eventType         String?
+  rawPayload        Json
+  normalizedPayload Json?
+  status            ErpEventStatus      @default(RECEBIDO)
+  errorMessage      String?             @db.Text
+  attempts          Int                 @default(1)
+  lastAttemptAt     DateTime            @default(now())
+  ledgerHash        String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relacionamentos
+  tenant            Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection        ErpConnection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+}
+
+// ==========================================
+// MÓDULO ENTERPRISE: PRECATÓRIOS & LIQUIDEZ JUDICIAL (v3.0)
+// ==========================================
+
+enum PrecatorioNatureza {
+  ALIMENTAR
+  COMUM
+}
+
+enum EnteEsfera {
+  FEDERAL
+  ESTADUAL
+  MUNICIPAL
+}
+
+enum PrecatorioStatus {
+  EM_ANALISE
+  APTO_CESSAO
+  EM_COMPENSACAO
+  CEDIDO
+  LIQUIDADO
+  BLOQUEADO
+}
+
+enum RegimePagamento {
+  GERAL_ART_100
+  ESPECIAL_ART_101_ADCT
+  FEDERAL_EC114_EC126
+}
+
+enum CessaoStatus {
+  MINUTA_CRIADA
+  ASSINADA
+  REGISTRADA_CARTORIO
+  PUBLICADA_DJEN
+  HOMOLOGADA_JUIZO
+  SPLIT_EXECUTADO
+}
+
+enum KycStatus {
+  PENDENTE
+  APROVADO
+  REJEITADO
+  ISENTO
+}
+
+model Cedente {
+  id               String       @id @default(uuid())
+  tenantId         String       // CNPJ ou ID do tenant isolado
+  cpfCnpj          String       @unique
+  nomeRazaoSocial  String
+  tipoPessoa       String       // 'PF' ou 'PJ'
+  email            String?
+  telefone         String?
+  endereco         String?
+  pep              Boolean      @default(false)
+  kycStatus        KycStatus    @default(PENDENTE)
+  kycAuditAt       DateTime?
+  kycHash          String?
+  
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  precatorios      Precatorio[]
+  cessoes          Cessao[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([tenantId])
+}
+
+model Cessionario {
+  id               String       @id @default(uuid())
+  tenantId         String       // CNPJ ou ID do tenant isolado
+  cpfCnpj          String       @unique
+  nomeRazaoSocial  String
+  tipo             String       // 'FUNDO_INVESTIMENTO', 'BANCO', 'EMPRESA_COMPENSACAO', 'PF_INVESTIDOR'
+  chavePix         String?
+  dadosBancarios   Json?
+  
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cessoes          Cessao[]
+  simulacoes       CompensacaoSimulation[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([tenantId])
+}
+
+model Precatorio {
+  id                   String              @id @default(uuid())
+  tenantId             String              // CNPJ ou ID do tenant isolado
+  numeroProcesso       String
+  numeroOficio         String              @unique
+  tribunal             String              // ex: TRF1, TRF3, TJSP, TJRJ
+  esfera               EnteEsfera          @default(FEDERAL)
+  enteDevedor          String              // ex: "União Federal", "Estado de São Paulo"
+  ufEnte               String?             // ex: "SP", "DF"
+  natureza             PrecatorioNatureza  @default(COMUM)
+  regime               RegimePagamento     @default(FEDERAL_EC114_EC126)
+  anoInscricaoLOA      Int
+  ordemCronologica     Int?
+  valorOriginal        Decimal             @db.Decimal(18, 2)
+  dataBaseCalculo      DateTime
+  valorAtualizado      Decimal?            @db.Decimal(18, 2)
+  dataAtualizacao      DateTime?
+  indicesAplicados     String?             // ex: "IPCA-E + 6% / TR / SELIC pura EC 113/2021"
+  status               PrecatorioStatus    @default(EM_ANALISE)
+  
+  // Auditoria e Risco
+  autentico            Boolean             @default(false)
+  oficioHash           String?
+  possuiPenhoras       Boolean             @default(false)
+  bloqueioMotivo       String?
+  
+  // Relações
+  tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cedenteId            String
+  cedente              Cedente             @relation(fields: [cedenteId], references: [id], onDelete: Restrict)
+  scoreSnapshots       ScoreSnapshot[]
+  cessoes              Cessao[]
+  monitores            PrecatorioMonitor[]
+  propostas            ProposedTerm[]
+  simulacoesCompensacao CompensacaoSimulation[]
+
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([tenantId])
+  @@index([numeroProcesso])
+  @@index([tribunal])
+  @@index([enteDevedor])
+}
+
+model ScoreSnapshot {
+  id                   String      @id @default(uuid())
+  tenantId             String      // CNPJ ou ID do tenant isolado
+  precatorioId         String
+  scoreTotal           Int         // 0 a 100
+  fatorEnteDevedor     Float
+  fatorEstabilidade    Float
+  fatorHistoricoPagto  Float
+  fatorNatureza        Float
+  fatorCadeiaLimpa     Float
+  bloqueadoAutomatico  Boolean     @default(false)
+  motivoBloqueio       String?
+  detalhes             Json
+  calculadoEm          DateTime    @default(now())
+  
+  tenant               Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  precatorio           Precatorio  @relation(fields: [precatorioId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([precatorioId])
+}
+
+model ProposedTerm {
+  id                   String      @id @default(uuid())
+  tenantId             String      // CNPJ ou ID do tenant isolado
+  precatorioId         String
+  valorFaceAtualizado  Decimal     @db.Decimal(18, 2)
+  desagioPercentual    Decimal     @db.Decimal(5, 2)   // ex: 35.50 (%)
+  valorPropostaLiquida Decimal     @db.Decimal(18, 2)
+  expectativaMeses     Int
+  taxaDescontoAplicada Decimal     @db.Decimal(6, 4)
+  validadeDias         Int         @default(15)
+  termoPdfHash         String?
+  status               String      @default("PENDENTE") // 'PENDENTE', 'ACEITA', 'RECUSADA', 'EXPIRADA'
+  geradoEm             DateTime    @default(now())
+
+  tenant               Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  precatorio           Precatorio  @relation(fields: [precatorioId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([precatorioId])
+}
+
+model Cessao {
+  id                    String         @id @default(uuid())
+  tenantId              String         // CNPJ ou ID do tenant isolado
+  precatorioId          String
+  cedenteId             String
+  cessionarioId         String
+  percentualCessao      Decimal        @db.Decimal(5, 2) // 100.00 ou cessão parcial
+  valorCessao           Decimal        @db.Decimal(18, 2)
+  valorLiquidoCredor    Decimal        @db.Decimal(18, 2)
+  honorariosAdvocaticios Decimal       @db.Decimal(18, 2) @default(0)
+  feePlataforma         Decimal        @db.Decimal(18, 2) @default(0)
+  status                CessaoStatus   @default(MINUTA_CRIADA)
+  
+  // Registro e Formalização
+  escrituraPublicaNumero String?
+  cartorioRegistro      String?
+  dataEscritura         DateTime?
+  djenPublicacaoData    DateTime?
+  djenEdicaoNumero      String?
+  djenHash              String?
+  peticaoHomologacaoId  String?
+
+  // Execução Financeira
+  splitStatus           String         @default("PENDENTE") // 'PENDENTE', 'PROCESSANDO', 'CONCLUIDO'
+  splitComprovanteHash  String?
+  splitLiquidadoEm      DateTime?
+
+  tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  precatorio            Precatorio     @relation(fields: [precatorioId], references: [id], onDelete: Restrict)
+  cedente               Cedente        @relation(fields: [cedenteId], references: [id], onDelete: Restrict)
+  cessionario           Cessionario    @relation(fields: [cessionarioId], references: [id], onDelete: Restrict)
+  ledgerRecords         CessaoLedger[]
+
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([tenantId])
+  @@index([precatorioId])
+  @@index([cedenteId])
+  @@index([cessionarioId])
+}
+
+model CessaoLedger {
+  id               String       @id @default(uuid())
+  tenantId         String       // CNPJ ou ID do tenant isolado
+  cessaoId         String
+  sequencia        Int          // 1, 2, 3... cadeia de cessões
+  previousHash     String       // hash_{n-1} ou "GENESIS"
+  currentHash      String       // SHA-256(previousHash + doc_hash + timestamp)
+  documentoPayload Json
+  assinadoPor      String
+  timestamp        DateTime     @default(now())
+
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cessao           Cessao       @relation(fields: [cessaoId], references: [id], onDelete: Cascade)
+
+  @@unique([cessaoId, sequencia])
+  @@index([tenantId])
+  @@index([currentHash])
+}
+
+model PrecatorioMonitor {
+  id               String       @id @default(uuid())
+  tenantId         String       // CNPJ ou ID do tenant isolado
+  precatorioId     String
+  userId           String?
+  canaisAlerta     Json         // string[]: ['EMAIL', 'SMS', 'PUSH', 'WEBHOOK', 'IN_APP']
+  triggers         Json         // string[]: ['ORDEM_PAGAMENTO', 'SEQUESTRO_VERBA', 'IMPUGNACAO_FAZENDA', etc.]
+  webhookUrl       String?
+  ultimoStatus     String?
+  ultimoHashDiff   String?
+  ultimoDisparoAt  DateTime?
+  ativo            Boolean      @default(true)
+  criadoEm         DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  precatorio       Precatorio   @relation(fields: [precatorioId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([precatorioId])
+}
+
+model CompensacaoSimulation {
+  id                   String       @id @default(uuid())
+  tenantId             String       // CNPJ ou ID do tenant isolado
+  precatorioId         String
+  cessionarioId        String
+  debitoTributarioTotal Decimal     @db.Decimal(18, 2)
+  debitoProjetadoMensal Decimal     @db.Decimal(18, 2)
+  limite75Percentual   Decimal      @db.Decimal(18, 2) // art. 5º Lei 14.973/2024
+  mesesEsgotamento     Int
+  vplEconomia          Decimal      @db.Decimal(18, 2)
+  taxaAtratividade     Decimal      @db.Decimal(5, 2)
+  atrativo             Boolean      @default(true)
+  criadoEm             DateTime     @default(now())
+
+  tenant               Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  precatorio           Precatorio   @relation(fields: [precatorioId], references: [id], onDelete: Cascade)
+  cessionario          Cessionario  @relation(fields: [cessionarioId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([precatorioId])
+  @@index([cessionarioId])
+}
+
+// ==========================================
+// ENGINE 7: LICENCIAMENTO, BILLING & ASSINATURA SAAS
+// ==========================================
+
+enum SubscriptionPlan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+enum BillingProviderType {
+  STUB
+  STRIPE
+  ASAAS
+  PAGARME
+}
+
+model BillingSubscription {
+  id                         String              @id @default(uuid())
+  tenantId                   String              @unique
+  cnpj                       String              // CNPJ do tenant operador
+  plano                      SubscriptionPlan    @default(STARTER)
+  status                     SubscriptionStatus  @default(ACTIVE)
+  provider                   BillingProviderType @default(STUB)
+  providerSubscriptionId     String?
+  seatsContratados           Int                 @default(5)
+  precatoriosMesInclusos     Int                 @default(20)
+  valorBaseMensalBrl         Decimal             @default(1490.00) @db.Decimal(10, 2)
+  valorPorSeatExtraBrl       Decimal             @default(150.00) @db.Decimal(10, 2)
+  valorPorPrecatorioExtraBrl Decimal             @default(89.00) @db.Decimal(10, 2)
+  cicloAtualInicio           DateTime            @default(now())
+  cicloAtualFim              DateTime
+  precatoriosProcessadosNoCiclo Int              @default(0)
+  seatsUtilizados            Int                 @default(1)
+  faturas                    BillingInvoice[]
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+
+  tenant                     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([cnpj])
+}
+
+model BillingInvoice {
+  id                         String              @id @default(uuid())
+  tenantId                   String
+  subscriptionId             String
+  numeroFatura               String              @unique // ex: "INV-2026-0001"
+  competenciaMesAno          String              // ex: "09/2026"
+  valorBaseBrl               Decimal             @db.Decimal(10, 2)
+  seatsExtrasQtd             Int                 @default(0)
+  valorSeatsExtrasBrl        Decimal             @default(0.00) @db.Decimal(10, 2)
+  precatoriosExtrasQtd       Int                 @default(0)
+  valorPrecatoriosExtrasBrl  Decimal             @default(0.00) @db.Decimal(10, 2)
+  valorTotalBrl              Decimal             @db.Decimal(10, 2)
+  status                     String              @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  provider                   BillingProviderType @default(STUB)
+  providerInvoiceId          String?
+  pdfUrl                     String?
+  pixCopiaECola              String?
+  qrcodeBase64               String?
+  vencimento                 DateTime
+  pagoEm                     DateTime?
+  payloadAuditoria           Json?
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
+
+  tenant                     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription               BillingSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  @@index([tenantId])
+  @@index([subscriptionId])
+}
+
+// ==========================================
+// P-BE2: MODELOS DE SESSÃO & SEGURANÇA
+// ==========================================
+
+model Session {
+  id        String    @id @default(uuid())
+  userId    String
+  jti       String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ==========================================
+// P-BE2: ENTERPRISE STORE (HITL, LEDGER, LAUDOS)
+// ==========================================
+
+model WorkItem {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  ref                    String?
+  esteira                String
+  tipo                   String
+  status                 String
+  payloadHash            String
+  memoriaCalculoHash     String?
+  riscoFlag              String
+  valorEnvolvidoCentavos BigInt   @default(0)
+  criadoPorAgente        String?
+  revisadoPor            String?
+  hashRevisado           String?
+  aprovacoes             Json     @default("[]")
+  motivoRejeicao         String?
+  idempotencyKey         String
+  payload                Json
+  memoriaCalculo         Json?
+  payloadRevisado        Json?
+  guardrail              Json?
+  resultado              Json?
+  criadoEm               DateTime @default(now())
+  atualizadoEm           DateTime @updatedAt
+
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, esteira])
+  @@index([tenantId, idempotencyKey])
+}
+
+model LedgerEntry {
+  id          String   @id @default(uuid())
+  tenantId    String
+  seq         Int
+  tipo        String
+  refId       String
+  actorId     String
+  payloadHash String
+  prevHash    String
+  hash        String
+  em          DateTime @default(now())
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, seq])
+  @@index([tenantId, refId])
+}
+
+model Laudo {
+  id              String      @id @default(uuid())
+  tenantId        String
+  reportId        String
+  serviceId       String
+  auditHash       String
+  emitidoPor      String
+  registradoEmUTC DateTime    @default(now())
+  report          Json
+
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  seals           LaudoSeal[]
+
+  @@unique([tenantId, reportId])
+  @@index([tenantId, serviceId])
+}
+
+model LaudoSeal {
+  id           String   @id @default(uuid())
+  tenantId     String
+  laudoId      String
+  versao       Int
+  workItemId   String
+  esteira      String
+  payloadHash  String
+  emitidoEmUTC DateTime @default(now())
+  signatario   Json
+  selo         String
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  laudo        Laudo    @relation(fields: [tenantId, laudoId], references: [tenantId, reportId], onDelete: Cascade)
+
+  @@unique([tenantId, laudoId, versao])
+  @@index([tenantId, workItemId])
+}
+
+// ==========================================
+// P-BE2: ESTEIRA LOAS / BPC & OUTBOX
+// ==========================================
+
+model CasoLoas {
+  id                    String   @id @default(uuid())
+  tenantId              String
+  advogadoResponsavelId String
+  numeroProcesso        String?
+  tribunal              String?
+  estagio               String   @default("CAPTURA")
+  versao                Int      @default(1)
+  casoData              Json
+  ultimoCalculoHash     String?
+  ultimaMinutaHash      String?
+  ultimaMinutaBloqueada Boolean  @default(false)
+  protocoladoDraftHash  String?
+  procuracao            Json?
+  aprovacao             Json?
+  criadoEm              DateTime @default(now())
+  atualizadoEm          DateTime @updatedAt
+
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, numeroProcesso])
+  @@index([tenantId, advogadoResponsavelId, estagio, atualizadoEm])
+}
+
+model OutboxEvent {
+  id         String   @id @default(uuid())
+  seq        Int      @default(autoincrement())
+  tenantId   String
+  advogadoId String
+  tipo       String
+  casoId     String?
+  dados      Json
+  em         DateTime @default(now())
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, seq])
+  @@index([tenantId, casoId])
+}
+
+// ==========================================
+// P-BE2: ANTECIPAÇÃO DE PRECATÓRIOS & RPVS
+// ==========================================
+
+model CreditoAntecipacao {
+  id                String          @id @default(uuid())
+  tenantId          String
+  advogadoId        String
+  tipo              String
+  numeroProcesso    String
+  tribunal          String
+  esfera            String
+  enteDevedor       String
+  natureza          String
+  valorFaceCentavos BigInt
+  status            String
+  creditoData       Json
+  analiseData       Json
+  ofertasData       Json
+  ofertaEscolhidaId String?
+  propostaHash      String?
+  escolhidaPor      String?
+  aprovadoPor       String?
+  aceite            Json?
+  checklist         Json?
+  pagamento         Json?
+  demo              Boolean         @default(false)
+  criadoEm          DateTime        @default(now())
+  atualizadoEm      DateTime        @updatedAt
+
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eventos           CreditoEvento[]
+
+  @@unique([tenantId, numeroProcesso])
+  @@index([tenantId, status])
+  @@index([tenantId, advogadoId])
+}
+
+model CreditoEvento {
+  id        String             @id @default(uuid())
+  tenantId  String
+  creditoId String
+  tipo      String
+  por       String
+  detalhe   String?
+  hash      String?
+  em        DateTime           @default(now())
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credito   CreditoAntecipacao @relation(fields: [creditoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, creditoId])
+}
+
+// ==========================================
+// P-BE2: TELEMETRIA & CERTIFICADOS A1
+// ==========================================
+
+model TelemetriaHora {
+  tenantId      String
+  hora          String
+  sessoes       Int      @default(0)
+  aberturasTela Int      @default(0)
+  minutosAtivos Int      @default(0)
+  usuariosCount Int      @default(0)
+  tokensEntrada BigInt   @default(0)
+  tokensSaida   BigInt   @default(0)
+  telasMap      Json?
+  cidadesMap    Json?
+  modelosMap    Json?
+  desfechosMap  Json?
+  demo          Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, hora])
+  @@index([tenantId])
+}
+
+model CertificadoA1 {
+  id               String    @id @default(uuid())
+  tenantId         String
+  thumbprintSha256 String    @unique
+  nomeTitular      String
+  cnpj             String
+  emissor          String
+  validoDe         DateTime
+  validoAte        DateTime
+  revogado         Boolean   @default(false)
+  kmsKeyId         String?
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([cnpj])
+}
+
+// ==========================================
+// P-BE2: NOVO MODELO DE NEGÓCIO (CONSULTORIA VELATRIX)
+// LEADS, CASOS, CONSENTIMENTOS, CONTRATOS, FATURAS E LICENÇAS
+// ==========================================
+
+model Lead {
+  id                 String   @id @default(uuid())
+  tenantId           String
+  idempotencyKey     String   @unique
+  origem             String   @default("SUPER_VELOX")
+  tipoPessoa         String
+  documento          String
+  nome               String
+  contato            Json
+  segmentoProvavel   String?
+  score              Int      @default(0)
+  sinais             String[] @default([])
+  lgpd               Json?
+  historicoAbordagem Json?
+  status             String   @default("NOVO")
+  casoId             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caso               Caso?    @relation(fields: [casoId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, documento])
+}
+
+model Caso {
+  id               String            @id @default(uuid())
+  tenantId         String
+  leadId           String?
+  clienteNome      String
+  clienteDocumento String
+  segmento         String?
+  rota             String            @default("ADMINISTRATIVO")
+  estagio          String            @default("CAPTURA")
+  responsavelId    String?
+  advogadoId       String?
+  valorEstimado    Decimal?          @db.Decimal(15, 2)
+  version          Int               @default(1)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leads            Lead[]
+  consentimentos   Consentimento[]
+  contratos        ContratoServico[]
+  faturas          Fatura[]
+
+  @@index([tenantId, estagio])
+  @@index([tenantId, rota])
+  @@index([tenantId, clienteDocumento])
+}
+
+model Consentimento {
+  id          String   @id @default(uuid())
+  tenantId    String
+  casoId      String
+  finalidade  String
+  textoAceito String
+  aceitoEm    DateTime @default(now())
+  ip          String?
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caso        Caso     @relation(fields: [casoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, casoId])
+  @@index([tenantId, finalidade])
+}
+
+model ContratoServico {
+  id              String    @id @default(uuid())
+  tenantId        String
+  casoId          String
+  tipo            String
+  percentualExito Decimal?  @db.Decimal(5, 2)
+  valorFixo       Decimal?  @db.Decimal(12, 2)
+  assinadoEm      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caso            Caso      @relation(fields: [casoId], references: [id], onDelete: Cascade)
+  faturas         Fatura[]
+
+  @@index([tenantId, casoId])
+}
+
+model Fatura {
+  id         String           @id @default(uuid())
+  tenantId   String
+  casoId     String?
+  contratoId String?
+  descricao  String
+  valor      Decimal          @db.Decimal(12, 2)
+  status     String           @default("ABERTA")
+  vencimento DateTime
+  pagaEm     DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caso       Caso?            @relation(fields: [casoId], references: [id], onDelete: SetNull)
+  contrato   ContratoServico? @relation(fields: [contratoId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, casoId])
+}
+
+model LicencaAdvogado {
+  id         String   @id @default(uuid())
+  tenantId   String
+  advogadoId String
+  modalidade String
+  valor      Decimal  @db.Decimal(12, 2)
+  ativa      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, advogadoId])
+}
+
+
+
